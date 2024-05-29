@@ -1,17 +1,17 @@
 logging:
   level:
-    root: DEBUG
+    root: INFO
     org.springframework.jdbc.core: TRACE
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/postgres
+    url: jdbc:postgresql://localhost:5433/sentryc_interview
     username: postgres
     password: pass
     driver-class-name: org.postgresql.Driver
   jpa:
     properties.hibernate:
-      dialect: org.hibernate.dialect.PostgreSQLDialect
+      default_schema: public
       batch_size: 50
       fetch_size: 50
       show_sql: true
@@ -20,3 +20,6 @@ spring:
         auto: validate
     #        auto: update
     open-in-view: false
+  graphql:
+    graphiql:
+      enabled: true
