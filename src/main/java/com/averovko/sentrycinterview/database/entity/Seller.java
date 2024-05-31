@@ -20,10 +20,10 @@ public class Seller {
     @UuidGenerator
     private UUID id;
 
-    @ManyToOne
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     private Producer producer;
 
-    @ManyToOne
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     private SellerInfo sellerInfo;
 
     @Enumerated(EnumType.STRING)

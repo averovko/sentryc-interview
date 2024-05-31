@@ -21,7 +21,7 @@ public class SellerInfo {
     @UuidGenerator
     private UUID id;
 
-    @ManyToOne
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     private Marketplace marketplace;
 
     private String name;

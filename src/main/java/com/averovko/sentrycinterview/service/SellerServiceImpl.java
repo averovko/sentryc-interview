@@ -1,19 +1,21 @@
 package com.averovko.sentrycinterview.service;
 
 import com.averovko.sentrycinterview.database.querydsl.QPredicates;
-import com.averovko.sentrycinterview.database.repository.SellerInfoRepository;
-import com.averovko.sentrycinterview.database.repository.SellerRepository;
+import com.averovko.sentrycinterview.database.repository.SellerQueryDslRepository;
 import com.averovko.sentrycinterview.dto.PageInput;
 import com.averovko.sentrycinterview.dto.SellerFilter;
 import com.averovko.sentrycinterview.dto.SellerReadDto;
 import com.averovko.sentrycinterview.dto.SellerSortBy;
 import com.averovko.sentrycinterview.mapper.SellerReadMapper;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.collections4.IterableUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static com.averovko.sentrycinterview.database.entity.QSeller.seller;
 import static com.averovko.sentrycinterview.database.entity.QSellerInfo.sellerInfo;
@@ -22,10 +24,10 @@ import static com.averovko.sentrycinterview.database.entity.QSellerInfo.sellerIn
 @Service
 public class SellerServiceImpl implements SellerService {
 
-    private final SellerRepository sellerRepository;
-    private final SellerInfoRepository sellerInfoRepository;
+    private final SellerQueryDslRepository sellerQueryDslRepository;
     private final SellerReadMapper sellerReadMapper;
 
+    @Transactional(readOnly = true)
     @Override
     public Page<SellerReadDto> findSellers(SellerFilter filter, PageInput page, SellerSortBy sortBy) {
         Sort sort;
@@ -56,23 +58,25 @@ public class SellerServiceImpl implements SellerService {
             }
         }
         PageRequest pageable = PageRequest.of(page.getPage(), page.getSize(), sort);
-
         var sellerInfoPredicate = QPredicates.builder()
                 .add(filter.searchByName(), sellerInfo.name::containsIgnoreCase)
                 .add(filter.producerIds(), sellerInfo.sellers.any().producer.id::in)
                 .add(filter.marketplaceIds(), sellerInfo.marketplace.id::in)
                 .build();
+        var sellerInfoResults = sellerQueryDslRepository.findSellerInfos(sellerInfoPredicate, pageable);
 
-        return sellerInfoRepository.findAll(sellerInfoPredicate, pageable)
-                .map(sellerInfo -> {
-                    var sellerPredicate = QPredicates.builder()
-                            .add(sellerInfo.getId(), seller.sellerInfo.id::eq)
-                            .add(filter.producerIds(), seller.producer.id::in)
-                            .build();
-                    var sellers = IterableUtils.toList(sellerRepository.findAll(sellerPredicate));
-                    sellerInfo.setSellers(sellers);
-                    return sellerInfo;
-                })
-                .map(sellerReadMapper::map);
+        var sellerInfoIds = sellerInfoResults
+                .stream()
+                .map(sellerInfo -> sellerInfo.getId())
+                .toList();
+        var sellerPredicate = QPredicates.builder()
+                .add(sellerInfoIds, sellerInfo.id::in)
+                .add(filter.producerIds(), seller.producer.id::in)
+                .build();
+        var sellerResults =
+                StreamSupport.stream(sellerQueryDslRepository.findSellers(sellerPredicate).spliterator(), false)
+                        .collect(Collectors.groupingBy(s -> s.getSellerInfo().getId()));
+
+        return sellerInfoResults.map(e -> sellerReadMapper.map(e, sellerResults.get(e.getId())));
     }
 }
